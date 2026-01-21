@@ -2,6 +2,7 @@ import { execSync, spawn } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
+import { getBundledClaudeBinaryPath } from "./claude/env";
 
 interface ClaudeCredentials {
   claudeAiOauth?: {
@@ -266,6 +267,13 @@ function getExtendedPath(): string {
  * Uses extended PATH to find claude even when running from Finder/Dock
  */
 export function isClaudeCliInstalled(): boolean {
+  // PRIORITY 1: Check CLAUDE_CLI_PATH environment variable
+  const envPath = process.env.CLAUDE_CLI_PATH;
+  if (envPath && existsSync(envPath)) {
+    console.log(`[claude-token] Using CLAUDE_CLI_PATH: ${envPath}`);
+    return true;
+  }
+
   try {
     // Use 'where' on Windows, 'which' on Unix-like systems
     const command = process.platform === 'win32' ? 'where claude' : 'which claude';
@@ -295,14 +303,17 @@ export function runClaudeSetupToken(
   return new Promise((resolve) => {
     onStatus('Starting Claude setup-token...');
 
-    const fullPath = getExtendedPath();
+    // PRIORITY 1: Use CLAUDE_CLI_PATH if set and exists
+    const envPath = process.env.CLAUDE_CLI_PATH;
+    const claudeBinaryPath = (envPath && existsSync(envPath)) ? envPath : getBundledClaudeBinaryPath();
 
-    const child = spawn('claude', ['setup-token'], {
+    console.log(`[claude-token] Using Claude binary: ${claudeBinaryPath}`);
+
+    const child = spawn(claudeBinaryPath, ['setup-token'], {
       // Don't use 'inherit' - it causes hang in non-TTY environments
       // Use 'ignore' for stdin and 'pipe' for stdout/stderr
       stdio: ['ignore', 'pipe', 'pipe'],
-      shell: true,
-      env: { ...process.env, PATH: fullPath },
+      shell: false,
     });
 
     let stdout = '';
