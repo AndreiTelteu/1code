@@ -20,11 +20,15 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Setup Node.js
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Setup Node.js (for electron-rebuild)
         uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache: npm
 
       - name: Cache electron-builder
         uses: actions/cache@v4
@@ -32,27 +36,21 @@ jobs:
           path: |
             ~\AppData\Local\electron\Cache
             ~\AppData\Local\electron-builder\Cache
-          key: ${{ runner.os }}-electron-builder-${{ hashFiles('**/package-lock.json') }}
+          key: ${{ runner.os }}-electron-builder-${{ hashFiles('bun.lock') }}
           restore-keys: |
             ${{ runner.os }}-electron-builder-
 
       - name: Install dependencies
-        run: npm ci
-        env:
-          npm_config_python: python
+        run: bun install
 
       - name: Download Claude binary for Windows
-        run: npm run claude:download
-
-      - name: Create build directory
-        run: mkdir -p build
-        shell: bash
+        run: bun run claude:download
 
       - name: Build application
-        run: npm run build
+        run: bun run build
 
       - name: Package for Windows (unsigned)
-        run: npx electron-builder --win --publish never
+        run: bunx electron-builder --win --publish never
         env:
           # Disable code signing auto-discovery since we don't have a certificate
           CSC_IDENTITY_AUTO_DISCOVERY: false
