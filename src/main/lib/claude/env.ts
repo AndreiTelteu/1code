@@ -34,6 +34,15 @@ export function getBundledClaudeBinaryPath(): string {
     return cachedBinaryPath!
   }
 
+  // PRIORITY 1: Check CLAUDE_CLI_PATH environment variable
+  const envPath = process.env.CLAUDE_CLI_PATH
+  if (envPath && fs.existsSync(envPath)) {
+    console.log(`[claude-binary] Using CLAUDE_CLI_PATH: ${envPath}`)
+    cachedBinaryPath = envPath
+    binaryPathComputed = true
+    return envPath
+  }
+
   const isDev = !app.isPackaged
   const platform = process.platform
   const arch = process.arch
