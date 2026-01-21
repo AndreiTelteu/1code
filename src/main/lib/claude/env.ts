@@ -119,6 +119,28 @@ export function getClaudeShellEnvironment(): Record<string, string> {
     return { ...cachedShellEnv }
   }
 
+  // On Windows, use process.env directly (no shell environment to load)
+  if (process.platform === "win32") {
+    const env: Record<string, string> = {}
+    for (const [key, value] of Object.entries(process.env)) {
+      if (value !== undefined) {
+        env[key] = value
+      }
+    }
+
+    // Strip keys that could interfere with Claude's auth resolution
+    for (const key of STRIPPED_ENV_KEYS) {
+      if (key in env) {
+        console.log(`[claude-env] Stripped ${key} from shell environment`)
+        delete env[key]
+      }
+    }
+
+    console.log(`[claude-env] Loaded ${Object.keys(env).length} environment variables (Windows)`)
+    cachedShellEnv = env
+    return { ...env }
+  }
+
   const shell = process.env.SHELL || "/bin/zsh"
   const command = `echo -n "${DELIMITER}"; env; echo -n "${DELIMITER}"; exit`
 
