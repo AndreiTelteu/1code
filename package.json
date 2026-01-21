@@ -212,8 +212,7 @@
       "target": [
         "nsis",
         "portable"
-      ],
-      "icon": "build/icon.ico"
+      ]
     },
     "linux": {
       "target": [
@@ -225,9 +224,7 @@
     },
     "nsis": {
       "oneClick": false,
-      "allowToChangeInstallationDirectory": true,
-      "installerIcon": "build/icon.ico",
-      "uninstallerIcon": "build/icon.ico"
+      "allowToChangeInstallationDirectory": true
     },
     "publish": {
       "provider": "generic",

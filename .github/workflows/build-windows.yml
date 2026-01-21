@@ -1,0 +1,93 @@
+name: Build Windows
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      create_release:
+        description: 'Create GitHub Release with artifacts'
+        type: boolean
+        default: false
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Cache electron-builder
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~\AppData\Local\electron\Cache
+            ~\AppData\Local\electron-builder\Cache
+          key: ${{ runner.os }}-electron-builder-${{ hashFiles('**/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-electron-builder-
+
+      - name: Install dependencies
+        run: npm ci
+        env:
+          npm_config_python: python
+
+      - name: Download Claude binary for Windows
+        run: npm run claude:download
+
+      - name: Create build directory
+        run: mkdir -p build
+        shell: bash
+
+      - name: Build application
+        run: npm run build
+
+      - name: Package for Windows (unsigned)
+        run: npx electron-builder --win --publish never
+        env:
+          # Disable code signing auto-discovery since we don't have a certificate
+          CSC_IDENTITY_AUTO_DISCOVERY: false
+          # Prevent electron-builder from failing on missing optional dependencies
+          DEBUG: electron-builder
+
+      - name: List release artifacts
+        run: dir release
+        shell: cmd
+
+      - name: Upload NSIS installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: 1Code-Windows-Installer
+          path: release/*.exe
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Upload unpacked build (for debugging)
+        uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: windows-unpacked-debug
+          path: release/win-unpacked
+          retention-days: 7
+
+      # Optional: Create GitHub Release on manual dispatch
+      - name: Create Release
+        if: github.event_name == 'workflow_dispatch' && github.event.inputs.create_release == 'true'
+        uses: softprops/action-gh-release@v2
+        with:
+          files: release/*.exe
+          draft: true
+          generate_release_notes: true
+          name: Windows Build ${{ github.run_number }}
+          tag_name: build-${{ github.run_number }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
