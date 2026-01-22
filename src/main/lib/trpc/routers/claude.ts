@@ -624,11 +624,19 @@ export const claudeRouter = router({
             // Capture stderr from Claude process for debugging
             const stderrLines: string[] = []
 
+            // Resolve cwd to absolute path if it's relative
+            // This fixes issues where relative worktree paths are passed
+            let resolvedCwd = input.cwd
+            if (!path.isAbsolute(input.cwd) && input.projectPath) {
+              resolvedCwd = path.join(input.projectPath, input.cwd)
+              console.log(`[claude] Resolved relative cwd "${input.cwd}" to absolute path "${resolvedCwd}"`)
+            }
+
             // Parse mentions from prompt (agents, skills, files, folders)
             const { cleanedPrompt, agentMentions, skillMentions } = parseMentions(input.prompt)
 
             // Build agents option for SDK (proper registration via options.agents)
-            const agentsOption = await buildAgentsOption(agentMentions, input.cwd)
+            const agentsOption = await buildAgentsOption(agentMentions, resolvedCwd)
 
             // Log if agents were mentioned
             if (agentMentions.length > 0) {
@@ -929,7 +937,7 @@ export const claudeRouter = router({
               prompt,
               options: {
                 abortController, // Must be inside options!
-                cwd: input.cwd,
+                cwd: resolvedCwd,
                 systemPrompt: {
                   type: "preset" as const,
                   preset: "claude_code" as const,
@@ -1088,11 +1096,11 @@ export const claudeRouter = router({
             // DEBUG: Log binary path and cwd validation before SDK query
             console.log(`[claude-binary] ===== SDK QUERY START =====`)
             console.log(`[claude-binary] Using CLAUDE_CLI_PATH: ${claudeBinaryPath}`)
-            console.log(`[claude-binary] Using CWD: ${input.cwd}`)
+            console.log(`[claude-binary] Using CWD: ${resolvedCwd}`)
             console.log(`[claude-binary] Binary exists: ${existsSync(claudeBinaryPath)}`)
-            console.log(`[claude-binary] CWD exists: ${existsSync(input.cwd)}`)
+            console.log(`[claude-binary] CWD exists: ${existsSync(resolvedCwd)}`)
             console.log(`[claude-binary] Is absolute path: ${path.isAbsolute(claudeBinaryPath)}`)
-            console.log(`[claude-binary] CWD is absolute: ${path.isAbsolute(input.cwd)}`)
+            console.log(`[claude-binary] CWD is absolute: ${path.isAbsolute(resolvedCwd)}`)
             console.log(`[claude-binary] ===== SDK QUERY END =====`)
 
             // 5. Run Claude SDK
@@ -1123,7 +1131,7 @@ export const claudeRouter = router({
               console.log(`[Ollama] Model: ${finalCustomConfig?.model}`)
               console.log(`[Ollama] Base URL: ${finalCustomConfig?.baseUrl}`)
               console.log(`[Ollama] Prompt: "${typeof input.prompt === 'string' ? input.prompt.slice(0, 100) : 'N/A'}..."`)
-              console.log(`[Ollama] CWD: ${input.cwd}`)
+              console.log(`[Ollama] CWD: ${resolvedCwd}`)
             }
 
             try {
@@ -1431,9 +1439,9 @@ export const claudeRouter = router({
               console.log(`[claude-binary] Error message: ${err.message}`)
               console.log(`[claude-binary] Error stack: ${err.stack}`)
               console.log(`[claude-binary] Binary path used: ${claudeBinaryPath}`)
-              console.log(`[claude-binary] CWD used: ${input.cwd}`)
+              console.log(`[claude-binary] CWD used: ${resolvedCwd}`)
               console.log(`[claude-binary] Binary exists: ${existsSync(claudeBinaryPath)}`)
-              console.log(`[claude-binary] CWD exists: ${existsSync(input.cwd)}`)
+              console.log(`[claude-binary] CWD exists: ${existsSync(resolvedCwd)}`)
               if (stderrOutput) {
                 console.log(`[claude-binary] Stderr output: ${stderrOutput}`)
               }
@@ -1450,10 +1458,10 @@ export const claudeRouter = router({
                 console.log(`[claude-binary] ===== EXECUTABLE_NOT_FOUND DETECTED =====`)
                 console.log(`[claude-binary] ENOENT error - checking what's missing:`)
                 console.log(`[claude-binary]   - Binary: ${claudeBinaryPath} (exists: ${existsSync(claudeBinaryPath)})`)
-                console.log(`[claude-binary]   - CWD: ${input.cwd} (exists: ${existsSync(input.cwd)})`)
-                console.log(`[claude-binary]   - CWD absolute: ${path.isAbsolute(input.cwd)}`)
+                console.log(`[claude-binary]   - CWD: ${resolvedCwd} (exists: ${existsSync(resolvedCwd)})`)
+                console.log(`[claude-binary]   - CWD absolute: ${path.isAbsolute(resolvedCwd)}`)
                 console.log(`[claude-binary]   - Binary absolute: ${path.isAbsolute(claudeBinaryPath)}`)
-                if (!existsSync(input.cwd)) {
+                if (!existsSync(resolvedCwd)) {
                   console.log(`[claude-binary] ⚠️  CWD directory does not exist! This is likely the cause of ENOENT.`)
                 }
                 if (!existsSync(claudeBinaryPath)) {
@@ -1501,7 +1509,7 @@ export const claudeRouter = router({
                     },
                     extra: {
                       context: errorContext,
-                      cwd: input.cwd,
+                      cwd: resolvedCwd,
                       stderr: stderrOutput || "(no stderr captured)",
                       chatId: input.chatId,
                       subChatId: input.subChatId,
@@ -1522,7 +1530,7 @@ export const claudeRouter = router({
                   debugInfo: {
                     context: errorContext,
                     category: errorCategory,
-                    cwd: input.cwd,
+                    cwd: resolvedCwd,
                     mode: input.mode,
                     stderr: stderrOutput || "(no stderr captured)",
                   },
@@ -1557,8 +1565,8 @@ export const claudeRouter = router({
                   .run()
 
                 // Create snapshot stash for rollback support (on error)
-                if (historyEnabled && metadata.sdkMessageUuid && input.cwd) {
-                  await createRollbackStash(input.cwd, metadata.sdkMessageUuid)
+                if (historyEnabled && metadata.sdkMessageUuid && resolvedCwd) {
+                  await createRollbackStash(resolvedCwd, metadata.sdkMessageUuid)
                 }
               }
 
@@ -1627,8 +1635,8 @@ export const claudeRouter = router({
               .run()
 
             // Create snapshot stash for rollback support
-            if (historyEnabled && metadata.sdkMessageUuid && input.cwd) {
-              await createRollbackStash(input.cwd, metadata.sdkMessageUuid)
+            if (historyEnabled && metadata.sdkMessageUuid && resolvedCwd) {
+              await createRollbackStash(resolvedCwd, metadata.sdkMessageUuid)
             }
 
             const duration = ((Date.now() - streamStart) / 1000).toFixed(1)
