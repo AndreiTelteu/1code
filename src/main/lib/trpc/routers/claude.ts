@@ -1085,6 +1085,16 @@ export const claudeRouter = router({
               },
             }
 
+            // DEBUG: Log binary path and cwd validation before SDK query
+            console.log(`[claude-binary] ===== SDK QUERY START =====`)
+            console.log(`[claude-binary] Using CLAUDE_CLI_PATH: ${claudeBinaryPath}`)
+            console.log(`[claude-binary] Using CWD: ${input.cwd}`)
+            console.log(`[claude-binary] Binary exists: ${existsSync(claudeBinaryPath)}`)
+            console.log(`[claude-binary] CWD exists: ${existsSync(input.cwd)}`)
+            console.log(`[claude-binary] Is absolute path: ${path.isAbsolute(claudeBinaryPath)}`)
+            console.log(`[claude-binary] CWD is absolute: ${path.isAbsolute(input.cwd)}`)
+            console.log(`[claude-binary] ===== SDK QUERY END =====`)
+
             // 5. Run Claude SDK
             let stream
             try {
@@ -1416,6 +1426,19 @@ export const claudeRouter = router({
                 }
               }
 
+              // DEBUG: Log full error details before categorizing
+              console.log(`[claude-binary] ===== ERROR DETAILS =====`)
+              console.log(`[claude-binary] Error message: ${err.message}`)
+              console.log(`[claude-binary] Error stack: ${err.stack}`)
+              console.log(`[claude-binary] Binary path used: ${claudeBinaryPath}`)
+              console.log(`[claude-binary] CWD used: ${input.cwd}`)
+              console.log(`[claude-binary] Binary exists: ${existsSync(claudeBinaryPath)}`)
+              console.log(`[claude-binary] CWD exists: ${existsSync(input.cwd)}`)
+              if (stderrOutput) {
+                console.log(`[claude-binary] Stderr output: ${stderrOutput}`)
+              }
+              console.log(`[claude-binary] ===== ERROR DETAILS END =====`)
+
               // Build detailed error message with category
               let errorContext = "Claude streaming error"
               let errorCategory = "UNKNOWN"
@@ -1424,6 +1447,19 @@ export const claudeRouter = router({
                 errorContext = "Claude Code process crashed"
                 errorCategory = "PROCESS_CRASH"
               } else if (err.message?.includes("ENOENT")) {
+                console.log(`[claude-binary] ===== EXECUTABLE_NOT_FOUND DETECTED =====`)
+                console.log(`[claude-binary] ENOENT error - checking what's missing:`)
+                console.log(`[claude-binary]   - Binary: ${claudeBinaryPath} (exists: ${existsSync(claudeBinaryPath)})`)
+                console.log(`[claude-binary]   - CWD: ${input.cwd} (exists: ${existsSync(input.cwd)})`)
+                console.log(`[claude-binary]   - CWD absolute: ${path.isAbsolute(input.cwd)}`)
+                console.log(`[claude-binary]   - Binary absolute: ${path.isAbsolute(claudeBinaryPath)}`)
+                if (!existsSync(input.cwd)) {
+                  console.log(`[claude-binary] ⚠️  CWD directory does not exist! This is likely the cause of ENOENT.`)
+                }
+                if (!existsSync(claudeBinaryPath)) {
+                  console.log(`[claude-binary] ⚠️  Binary path does not exist!`)
+                }
+                console.log(`[claude-binary] ===== EXECUTABLE_NOT_FOUND END =====`)
                 errorContext = "Required executable not found in PATH"
                 errorCategory = "EXECUTABLE_NOT_FOUND"
               } else if (
